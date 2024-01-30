@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!--<meta http-equiv="Content-Type" content="text/html;charset=utf-8">-->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Flight Simulator</title>
+
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+#version 300 es
+
+precision mediump float;
+
+in vec4 vPosition;
+in vec4 aNormal;
+out vec3 N;
+out vec3 pos;
+
+uniform mat4 uModelViewMatrix;
+uniform mat4 uProjectionMatrix;
+uniform mat3 uNormalMatrix;
+
+
+
+void main()
+{
+    N = normalize(uNormalMatrix*aNormal.xyz);
+    gl_Position = uProjectionMatrix * uModelViewMatrix * vPosition;
+    pos = vPosition.xyz;
+    gl_PointSize = 2.0;
+
+}
+
+
+</script>
+
+    <script id="fragment-shader" type="x-shader/x-fragment">
+#version 300 es
+precision mediump float;
+
+in vec3 N;
+in vec3 pos;
+out vec4 fColor;
+
+float materialShininess = 1.0;
+vec3 lightPosition = vec3(0.0, 2.0, 2.0);
+
+uniform vec4 viewPos;
+
+vec3 CalcPointLight(vec3 light, vec3 normal, vec3 fragPos, vec3 viewDir);
+vec4 setColor(vec3 pos);
+mediump float map_point(mediump float p, mediump float q, mediump float a, mediump float b, mediump float x);
+
+void main()
+{
+
+    vec3 norm = normalize(N);
+    vec3 viewDir = normalize(viewPos.xyz - pos);
+    vec3 result = CalcPointLight(lightPosition, norm, pos, viewDir);    
+    
+    fColor = vec4(result, 1.0);
+
+    
+}
+
+vec3 CalcPointLight(vec3 light, vec3 normal, vec3 fragPos, vec3 viewDir)
+{
+    vec3 lightDir = normalize(-light);
+
+    float diff = max(dot(normal, lightDir), 0.0);
+
+    vec3 reflectDir = reflect(-lightDir, normal);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), materialShininess);
+
+    vec4 vColor = setColor(pos);
+    vec3 ambient = vColor.xyz * 0.2;
+    vec3 diffuse = diff * vColor.xyz;
+    vec3 specular = spec * vColor.xyz;
+
+    return (ambient + diffuse + specular);
+}
+
+
+mediump float map_point(mediump float p, mediump float q, mediump float a, mediump float b, mediump float x) 
+{
+
+    mediump float l1 = b-a;
+    mediump float l2 = a+l1;
+    mediump float r1 = q-p;
+    mediump float r2 = x-p;
+    mediump float r3 = r1*r2;
+    mediump float final = l2/r3;
+    return final;
+}
+
+vec4 setColor(vec3 pos)
+{
+    mediump float r = 0.0; mediump float g = 0.0; mediump float b = 0.0;
+
+    if (pos.y <= 0.0)
+    {
+      b = map_point(-1.0, 0.0, 0.0, 0.5, pos.y);
+    }
+
+    else if (pos.y > 0.0 && pos.y <= 0.3)
+    {
+      r = 0.588;
+      g = 0.294;
+    }
+
+    else if (pos.y > 0.3 && pos.y <= 1.0)
+    {
+      g = 0.44;
+    }
+
+    else if (pos.y > 1.0 && pos.y <= 2.0)
+    {
+      r = map_point(0.3, 0.5, 0.7, 1.0, pos.y);
+      g = map_point(0.3, 0.5, 0.7, 1.0, pos.y);
+      b = map_point(0.3, 0.5, 0.7, 1.0, pos.y);
+    }
+    return vec4(r, g, b, 1.0);
+}
+</script>
+
+
+    <script src="http://interactivecomputergraphics.com/8E/Code%20update/Common/initShadersES6.js"></script>
+    <script src="MVES6.js"></script>
+    <script type="text/javascript" src="main.js"></script>
+    <script type="text/javascript" src="perlin.js"></script>
+    <script src="https://unpkg.com/delaunator@5.0.0/delaunator.min.js"></script>
+
+</head>
+
+<body>
+    <div style="float: right;">
+        <div>fps: <span id="fps"></span></div>
+        <div>
+            Please wait to for simulator to start! <br>
+            Press Escape to Quit.<br>
+            <p id="view"
+                style="text-align: right; margin-right: 20px; font-size: 20px; font-weight: bold;display: inline;">
+                Face View
+            </p>
+            <p id="text" style="text-align: right; margin-right: 20px; font-size: 15px;display: inline; ">
+                - Press v/V to toggle between faces, points and wireframes
+            </p>
+        </div>
+        <div>
+            <p id="shade"
+                style="text-align: right; margin-right: 20px; font-size: 20px; font-weight: bold;display: inline;">
+                Flat Shading
+            </p>
+            <p id="text" style="text-align: right; margin-right: 20px; font-size: 15px; display: inline;">
+                - Press c/C to toggle between flat, smooth and phong shading
+            </p>
+        </div>
+
+        <div>
+            <p id="text"
+                style="text-align: right; margin-right: 20px; font-weight: bold; font-size: 15px; display: inline;">
+                <br>Alter view bounds:
+            </p>
+            <p id="text" style="text-align: right; margin-right: 20px; font-size: 15px; display: inline;">
+                <br>1 = left - 1 & Shift1 = left + 1 <br>
+                2 = right - 1 & Shift2 = right + 1 <br>
+                3 = top - 1 & Shift3 = top + 1 <br>
+                4 = bottom - 1 & Shift4 = bottom + 1 <br>
+                5 = near - 1 & Shift5 = near + 1 <br>
+                6 = far + 1 & Shift6 = far - 1 <br>
+            </p>
+        </div>
+
+        <div>
+            <div id="button-left">
+                <p id="left-value"></p>
+            </div>
+
+            <div id="button-right">
+                <p id="right-value"></p>
+            </div>
+
+            <div id="button-top">
+                <p id="top-value"></p>
+            </div>
+
+            <div id="button-bottom">
+                <p id="bottom-value"></p>
+            </div>
+
+            <div id="button-near">
+                <p id="near-value"></p>
+            </div>
+
+            <div id="button-far">
+                <p id="far-value"></p>
+            </div>
+        </div>
+
+    </div>
+
+    <canvas id="gl-canvas" width="650" height="650">
+        <!-- Oops ... your browser doesn't support the HTML5 canvas element -->
+    </canvas>
+
+</body>
+
+</html>
